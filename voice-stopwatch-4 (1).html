@@ -1,0 +1,1165 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Chronovox — Voice Stopwatch</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg: #0B0E0C;
+    --panel: #14180F;
+    --panel-2: #1A2016;
+    --amber: #FFB000;
+    --amber-dim: #8A5F00;
+    --teal: #2DD4BF;
+    --red: #FF5C5C;
+    --ink: #E9E6DA;
+    --ink-dim: #7C8172;
+    --ring: rgba(255,176,0,0.14);
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;height:100%;}
+  body{
+    background:
+      radial-gradient(ellipse at top, #171c12 0%, var(--bg) 55%);
+    color:var(--ink);
+    font-family:'Space Grotesk',sans-serif;
+    min-height:100vh;
+    height:100vh;
+    overflow:hidden;
+    display:flex;
+    align-items:stretch;
+    justify-content:center;
+    padding:16px;
+  }
+
+  /* ── Landscape two-column shell ── */
+  .landscape-wrapper{
+    display:flex;
+    flex-direction:row;
+    width:100%;
+    max-width:980px;
+    height:100%;
+    gap:16px;
+    align-items:stretch;
+  }
+
+  .left-panel,
+  .right-panel{
+    background:linear-gradient(180deg,var(--panel) 0%, #10130D 100%);
+    border:1px solid #262C1D;
+    border-radius:22px;
+    padding:24px 22px 20px;
+    box-shadow:
+      0 0 0 1px rgba(255,176,0,0.03),
+      0 30px 60px -20px rgba(0,0,0,0.7),
+      inset 0 1px 0 rgba(255,255,255,0.03);
+    position:relative;
+    overflow:hidden;
+    display:flex;
+    flex-direction:column;
+  }
+  .left-panel::before,
+  .right-panel::before{
+    content:"";
+    position:absolute;
+    inset:0;
+    background:repeating-linear-gradient(0deg, rgba(255,255,255,0.012) 0px, rgba(255,255,255,0.012) 1px, transparent 1px, transparent 3px);
+    pointer-events:none;
+  }
+
+  .left-panel{
+    flex:0 0 46%;
+    overflow-y:auto;
+  }
+  .right-panel{
+    flex:1 1 0;
+    min-width:0;
+    overflow:hidden;
+  }
+  /* Analysis panel scrolls within right panel */
+  #panelAnalysis{
+    overflow-y:auto;
+  }
+
+  .brand-row{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    margin-bottom:22px;
+  }
+  .brand{
+    font-family:'JetBrains Mono',monospace;
+    font-size:12.5px;
+    letter-spacing:0.28em;
+    color:var(--ink-dim);
+    text-transform:uppercase;
+  }
+  .brand b{color:var(--amber); font-weight:700;}
+
+  .mic-toggle{
+    display:flex;
+    align-items:center;
+    gap:8px;
+    background:var(--panel-2);
+    border:1px solid #2A3120;
+    border-radius:999px;
+    padding:6px 14px 6px 10px;
+    cursor:pointer;
+    font-size:11.5px;
+    letter-spacing:0.08em;
+    color:var(--ink-dim);
+    text-transform:uppercase;
+    transition:border-color .2s;
+    font-family:'Space Grotesk',sans-serif;
+    user-select:none;
+  }
+  .mic-toggle:hover{border-color:#3a4429;}
+  .mic-dot{
+    width:8px;height:8px;border-radius:50%;
+    background:var(--ink-dim);
+    flex-shrink:0;
+  }
+  .mic-toggle.listening .mic-dot{
+    background:var(--red);
+    box-shadow:0 0 0 0 rgba(255,92,92,0.6);
+    animation:pulse-dot 1.4s infinite;
+  }
+  .mic-toggle.listening{color:var(--ink); border-color:rgba(255,92,92,0.35);}
+  @keyframes pulse-dot{
+    0%{box-shadow:0 0 0 0 rgba(255,92,92,0.55);}
+    70%{box-shadow:0 0 0 8px rgba(255,92,92,0);}
+    100%{box-shadow:0 0 0 0 rgba(255,92,92,0);}
+  }
+
+  /* Full-size analog clock — hour/minute/second hands + reactive stopwatch highlight */
+  .analog-wrap{
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    margin-bottom:16px;
+    flex-shrink:0;
+  }
+  .analog-clock{
+    position:relative;
+    width:100%;
+    max-width:260px;
+    aspect-ratio:1/1;
+    border-radius:50%;
+    background:radial-gradient(circle at 38% 32%, #1b2114 0%, #0d0f0a 70%);
+    box-shadow:
+      0 0 0 5px #202617,
+      0 0 30px rgba(0,0,0,0.55) inset,
+      0 0 26px rgba(255,176,0,0.06);
+    transition:box-shadow .3s ease;
+  }
+  .ac-center-dot{
+    position:absolute; top:50%; left:50%;
+    width:2.2%; height:2.2%;
+    background:var(--amber);
+    border-radius:50%;
+    transform:translate(-50%,-50%);
+    z-index:10;
+    box-shadow:0 0 6px rgba(255,176,0,0.7);
+  }
+  .ac-marker{ position:absolute; top:0; left:50%; width:2px; height:100%; transform-origin:50% 50%; }
+  .ac-marker .ac-tick{ position:absolute; top:4%; left:50%; width:1.5px; height:3.5%; background:#242b19; transform:translateX(-50%); }
+  .ac-marker.hour .ac-tick{ width:2.5px; height:5.5%; background:#3a4429; }
+  .ac-number{
+    position:absolute; width:14%; text-align:center;
+    font-family:'JetBrains Mono',monospace;
+    font-size:clamp(9px,3vmin,13px);
+    color:var(--ink-dim);
+    font-weight:600;
+    transform:translate(-50%,-50%);
+    user-select:none;
+  }
+  .ac-hand{ position:absolute; bottom:50%; left:50%; transform-origin:50% 100%; border-radius:10px; z-index:5; }
+  .ac-hour-hand{ width:2%; height:22%; background:var(--ink); }
+  .ac-minute-hand{ width:1.6%; height:34%; background:var(--teal); box-shadow:0 0 4px rgba(45,212,191,0.5); }
+  .ac-second-hand{ width:0.7%; height:39%; background:#ff5c5c88; }
+  .ac-highlight-svg{ position:absolute; inset:0; width:100%; height:100%; pointer-events:none; z-index:8; }
+  .ac-track{ fill:none; stroke:#212617; stroke-width:2.5; }
+  .ac-highlight-ring{
+    fill:none;
+    stroke:var(--amber);
+    stroke-width:4;
+    stroke-linecap:round;
+    filter:drop-shadow(0 0 6px rgba(255,176,0,0.65));
+    transform-box:fill-box;
+    transform-origin:center;
+  }
+  .analog-caption{
+    margin-top:9px;
+    min-height:14px;
+    font-family:'JetBrains Mono',monospace;
+    font-size:10px;
+    letter-spacing:0.16em;
+    text-transform:uppercase;
+    color:var(--ink-dim);
+    transition:color .25s;
+  }
+  .analog-caption.marked{ color:var(--amber); }
+  .ac-mark-dot{
+    fill:var(--amber);
+    filter:drop-shadow(0 0 4px rgba(255,176,0,0.85));
+  }
+
+  /* Dial */
+  .dial-wrap{
+    position:relative;
+    width:100%;
+    max-width:320px;
+    margin:4px auto 20px;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+  }
+
+  .readout{
+    position:relative;
+    text-align:center;
+    z-index:2;
+  }
+  .time{
+    font-family:'JetBrains Mono',monospace;
+    font-weight:700;
+    font-size:2.55rem;
+    letter-spacing:0.01em;
+    color:var(--amber);
+    text-shadow:0 0 18px rgba(255,176,0,0.35);
+    line-height:1;
+  }
+  .time .cs{ font-size:1.4rem; color:var(--amber-dim); }
+  .state-label{
+    margin-top:10px;
+    font-family:'JetBrains Mono',monospace;
+    font-size:10.5px;
+    letter-spacing:0.3em;
+    text-transform:uppercase;
+    color:var(--ink-dim);
+  }
+  .state-label.running{color:var(--teal);}
+  .state-label.stopped{color:var(--red);}
+
+  /* Controls */
+  .controls{
+    display:grid;
+    grid-template-columns:repeat(4,1fr);
+    gap:10px;
+    margin-bottom:20px;
+  }
+  .ctrl{
+    font-family:'Space Grotesk',sans-serif;
+    font-weight:600;
+    font-size:12.5px;
+    letter-spacing:0.05em;
+    text-transform:uppercase;
+    padding:13px 4px;
+    border-radius:12px;
+    border:1px solid #2A3120;
+    background:var(--panel-2);
+    color:var(--ink);
+    cursor:pointer;
+    transition:transform .08s ease, border-color .15s, background .15s;
+  }
+  .ctrl:active{transform:scale(0.96);}
+  .ctrl:hover{border-color:#465127;}
+  .ctrl.start{color:var(--teal); border-color:rgba(45,212,191,0.3);}
+  .ctrl.stop{color:var(--red); border-color:rgba(255,92,92,0.3);}
+  .ctrl.lap{color:var(--amber); border-color:rgba(255,176,0,0.3);}
+  .ctrl:disabled{opacity:0.35; cursor:not-allowed;}
+
+  /* Voice heard toast */
+  .heard{
+    text-align:center;
+    min-height:18px;
+    font-family:'JetBrains Mono',monospace;
+    font-size:11px;
+    letter-spacing:0.12em;
+    text-transform:uppercase;
+    color:var(--ink-dim);
+    margin-bottom:14px;
+    transition:opacity .3s;
+  }
+  .heard b{color:var(--amber);}
+
+  /* Lap log */
+  .log-head{
+    display:flex;
+    justify-content:space-between;
+    font-family:'JetBrains Mono',monospace;
+    font-size:10px;
+    letter-spacing:0.18em;
+    text-transform:uppercase;
+    color:var(--ink-dim);
+    padding:0 4px 8px;
+    border-bottom:1px solid #232819;
+  }
+  .log{
+    flex:1 1 0;
+    min-height:0;
+    overflow-y:auto;
+    margin-top:2px;
+  }
+  .log::-webkit-scrollbar{width:6px;}
+  .log::-webkit-scrollbar-thumb{background:#2A3120; border-radius:6px;}
+  .lap-row{
+    display:grid;
+    grid-template-columns:34px 1fr 1fr;
+    gap:8px;
+    align-items:center;
+    padding:9px 4px;
+    border-bottom:1px solid #1c2115;
+    font-family:'JetBrains Mono',monospace;
+    font-size:13px;
+    animation:slide-in .25s ease;
+  }
+  @keyframes slide-in{from{opacity:0; transform:translateY(-6px);} to{opacity:1; transform:translateY(0);}}
+  .lap-row .idx{color:var(--ink-dim); font-size:11.5px;}
+  .lap-row .split{color:var(--teal); text-align:right;}
+  .lap-row .total{color:var(--ink); text-align:right;}
+  .lap-row.best .split{color:var(--amber);}
+  .empty-log{
+    text-align:center;
+    padding:22px 8px 6px;
+    color:var(--ink-dim);
+    font-size:12px;
+  }
+
+  .tabs{
+    display:grid;
+    grid-template-columns:1fr 1fr;
+    gap:6px;
+    background:var(--panel-2);
+    border:1px solid #2A3120;
+    border-radius:12px;
+    padding:4px;
+    margin-bottom:20px;
+  }
+  .tab{
+    font-family:'Space Grotesk',sans-serif;
+    font-weight:600;
+    font-size:12px;
+    letter-spacing:0.06em;
+    text-transform:uppercase;
+    padding:9px 4px;
+    border-radius:9px;
+    border:none;
+    background:transparent;
+    color:var(--ink-dim);
+    cursor:pointer;
+    transition:background .15s, color .15s;
+  }
+  .tab.active{
+    background:#232919;
+    color:var(--amber);
+    box-shadow:inset 0 0 0 1px rgba(255,176,0,0.25);
+  }
+  .tab .tab-badge{
+    display:inline-block;
+    margin-left:5px;
+    font-size:9.5px;
+    color:var(--teal);
+  }
+
+  .panel{ display:flex; flex-direction:column; flex:1 1 0; min-height:0; }
+  .panel[hidden]{ display:none !important; }
+
+  /* Analysis panel */
+  .analysis-empty{
+    text-align:center;
+    padding:50px 12px;
+    color:var(--ink-dim);
+    font-size:13px;
+    line-height:1.7;
+  }
+  .analysis-note{
+    text-align:center;
+    font-size:11px;
+    color:var(--teal);
+    letter-spacing:0.05em;
+    text-transform:uppercase;
+    margin:-6px 0 16px;
+  }
+  .stats-grid{
+    display:grid;
+    grid-template-columns:1fr 1fr;
+    gap:10px;
+    margin-bottom:20px;
+  }
+  .stat-card{
+    background:var(--panel-2);
+    border:1px solid #232819;
+    border-radius:12px;
+    padding:12px 14px;
+  }
+  .stat-label{
+    font-size:9.5px;
+    letter-spacing:0.14em;
+    text-transform:uppercase;
+    color:var(--ink-dim);
+    margin-bottom:6px;
+  }
+  .stat-value{
+    font-family:'JetBrains Mono',monospace;
+    font-size:1.15rem;
+    font-weight:700;
+    color:var(--amber);
+  }
+  .stat-value.teal{color:var(--teal);}
+  .stat-value.red{color:var(--red);}
+  .stat-sub{
+    font-family:'JetBrains Mono',monospace;
+    font-size:10.5px;
+    color:var(--ink-dim);
+    margin-top:2px;
+  }
+
+  .chart-wrap{
+    background:var(--panel-2);
+    border:1px solid #232819;
+    border-radius:12px;
+    padding:14px 10px 10px;
+    margin-bottom:18px;
+  }
+  .chart-title{
+    font-size:10px;
+    letter-spacing:0.14em;
+    text-transform:uppercase;
+    color:var(--ink-dim);
+    margin:0 4px 8px;
+  }
+  .chart-bar{ transition:height .2s ease, y .2s ease; }
+  .chart-avg-line{ stroke:var(--teal); stroke-width:1.5; stroke-dasharray:4 3; }
+  .chart-label{ font-family:'JetBrains Mono',monospace; font-size:8.5px; fill:var(--ink-dim); }
+  .chart-val{ font-family:'JetBrains Mono',monospace; font-size:8px; fill:var(--ink); }
+
+  .report-actions{
+    display:grid;
+    grid-template-columns:1fr 1fr;
+    gap:10px;
+    margin-bottom:6px;
+  }
+  .report-btn{
+    font-family:'Space Grotesk',sans-serif;
+    font-weight:600;
+    font-size:12px;
+    letter-spacing:0.04em;
+    padding:12px 4px;
+    border-radius:12px;
+    border:1px solid rgba(45,212,191,0.3);
+    background:var(--panel-2);
+    color:var(--teal);
+    cursor:pointer;
+    transition:transform .08s ease, border-color .15s;
+  }
+  .report-btn:active{ transform:scale(0.96); }
+  .report-btn:hover{ border-color:rgba(45,212,191,0.55); }
+
+  .hint{
+    margin-top:18px;
+    text-align:center;
+    font-size:11px;
+    color:var(--ink-dim);
+    line-height:1.6;
+  }
+  .hint code{
+    background:var(--panel-2);
+    padding:1px 6px;
+    border-radius:5px;
+    color:var(--amber);
+    font-family:'JetBrains Mono',monospace;
+  }
+
+  @media (prefers-reduced-motion: reduce){
+    .lap-row, .mic-dot{animation:none !important;}
+  }
+</style>
+</head>
+<body>
+
+<div class="landscape-wrapper">
+
+  <!-- ══ LEFT PANEL — Clock & Settings ══ -->
+  <div class="left-panel">
+    <div class="brand-row">
+      <div class="brand"><b>CHRONO</b>VOX</div>
+      <div class="mic-toggle" id="micToggle" role="button" tabindex="0" aria-pressed="false">
+        <span class="mic-dot"></span>
+        <span id="micLabel">Voice off</span>
+      </div>
+    </div>
+
+    <div class="analog-wrap">
+      <div class="analog-clock" id="analogClock">
+        <div class="ac-center-dot"></div>
+        <svg class="ac-highlight-svg" viewBox="0 0 200 200">
+          <circle class="ac-track" cx="100" cy="100" r="94"/>
+          <circle class="ac-highlight-ring" id="acHighlightRing" cx="100" cy="100" r="94" stroke-dasharray="0 590.6"/>
+          <circle class="ac-mark-dot" id="acMarkStart" cx="100" cy="6" r="4" visibility="hidden"/>
+          <circle class="ac-mark-dot" id="acMarkEnd" cx="100" cy="6" r="4" visibility="hidden"/>
+        </svg>
+      </div>
+      <div class="analog-caption" id="analogCaption">&nbsp;</div>
+    </div>
+
+    <div class="heard" id="heard">&nbsp;</div>
+
+    <div class="hint">
+      Say <code>start</code>, <code>mark</code>, <code>stop</code>, or <code>reset</code> — or use the buttons on the right.
+    </div>
+  </div>
+
+  <!-- ══ RIGHT PANEL — Timer & Laps ══ -->
+  <div class="right-panel">
+    <div class="tabs">
+      <button class="tab active" id="tabTimer" data-tab="timer">Timer</button>
+      <button class="tab" id="tabAnalysis" data-tab="analysis">Analysis<span class="tab-badge" id="tabBadge"></span></button>
+    </div>
+
+    <div class="panel" id="panelTimer">
+      <div class="dial-wrap">
+        <div class="readout">
+          <div class="time" id="timeDisplay">00:00<span class="cs">.00</span></div>
+          <div class="state-label stopped" id="stateLabel">Ready</div>
+        </div>
+      </div>
+
+      <div class="controls">
+        <button class="ctrl start" id="btnStart">Start</button>
+        <button class="ctrl lap" id="btnLap" disabled>Lap</button>
+        <button class="ctrl stop" id="btnStop" disabled>Stop</button>
+        <button class="ctrl" id="btnReset">Reset</button>
+      </div>
+
+      <div class="log-head">
+        <span>Lap log</span>
+        <span>split · total</span>
+      </div>
+      <div class="log" id="log">
+        <div class="empty-log" id="emptyLog">No laps recorded yet</div>
+      </div>
+    </div>
+
+    <div class="panel" id="panelAnalysis" hidden>
+      <div id="analysisEmpty" class="analysis-empty">No laps to analyze yet.<br>Record at least one lap, then stop the clock.</div>
+
+      <div id="analysisContent" hidden>
+        <div class="analysis-note" id="analysisNote" hidden>Clock still running — showing live data</div>
+
+        <div class="stats-grid">
+          <div class="stat-card">
+            <div class="stat-label">Total time</div>
+            <div class="stat-value" id="statTotal">00:00.00</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-label">Laps recorded</div>
+            <div class="stat-value" id="statCount">0</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-label">Average lap</div>
+            <div class="stat-value teal" id="statAvg">00:00.00</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-label">Consistency (σ)</div>
+            <div class="stat-value" id="statStdDev">±00:00.00</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-label">Fastest lap</div>
+            <div class="stat-value teal" id="statBest">—</div>
+            <div class="stat-sub" id="statBestIdx"></div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-label">Slowest lap</div>
+            <div class="stat-value red" id="statWorst">—</div>
+            <div class="stat-sub" id="statWorstIdx"></div>
+          </div>
+        </div>
+
+        <div class="chart-wrap">
+          <div class="chart-title">Lap splits (dashed line = average)</div>
+          <svg id="chartSvg" viewBox="0 0 300 140" style="width:100%; height:auto; display:block;"></svg>
+        </div>
+
+        <div class="log-head">
+          <span>Full breakdown</span>
+          <span>split · total</span>
+        </div>
+        <div class="log" id="analysisLog"></div>
+
+        <div class="report-actions" style="margin-top:16px;">
+          <button class="report-btn" id="btnCopyReport">Copy report</button>
+          <button class="report-btn" id="btnDownloadReport">Download .txt</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+(function(){
+  // ---------- Timer core ----------
+  let running = false;
+  let startTime = 0;
+  let elapsedBeforePause = 0;
+  let rafId = null;
+  let laps = []; // {totalMs, splitMs}
+
+  const timeDisplay = document.getElementById('timeDisplay');
+  const stateLabel = document.getElementById('stateLabel');
+  const btnStart = document.getElementById('btnStart');
+  const btnLap = document.getElementById('btnLap');
+  const btnStop = document.getElementById('btnStop');
+  const btnReset = document.getElementById('btnReset');
+  const logEl = document.getElementById('log');
+  const emptyLog = document.getElementById('emptyLog');
+  const heard = document.getElementById('heard');
+
+  function formatTime(ms){
+    const totalCs = Math.floor(ms / 10);
+    const cs = totalCs % 100;
+    const totalSec = Math.floor(totalCs / 100);
+    const sec = totalSec % 60;
+    const min = Math.floor(totalSec / 60);
+    const pad = (n, l=2) => String(n).padStart(l, '0');
+    return { main: `${pad(min)}:${pad(sec)}`, cs: pad(cs) };
+  }
+
+  function currentElapsed(){
+    return running ? (performance.now() - startTime) : elapsedBeforePause;
+  }
+
+  function render(){
+    const ms = currentElapsed();
+    const { main, cs } = formatTime(ms);
+    timeDisplay.innerHTML = `${main}<span class="cs">.${cs}</span>`;
+  }
+
+  function tick(){
+    render();
+    if (running) rafId = requestAnimationFrame(tick);
+  }
+
+  function setState(label, cls){
+    stateLabel.textContent = label;
+    stateLabel.className = 'state-label ' + (cls || '');
+  }
+
+  function doStart(){
+    if (running) { flashHeard('Already running'); return; }
+    running = true;
+    startTime = performance.now() - elapsedBeforePause;
+    btnStart.disabled = true;
+    btnLap.disabled = false;
+    btnStop.disabled = false;
+    setState('Running', 'running');
+    tick();
+    markMinuteHighlight();
+  }
+
+  function doStop(){
+    if (!running) { flashHeard('Already stopped'); return; }
+    running = false;
+    elapsedBeforePause = performance.now() - startTime;
+    cancelAnimationFrame(rafId);
+    btnStart.disabled = false;
+    btnLap.disabled = true;
+    btnStop.disabled = true;
+    setState('Stopped', 'stopped');
+    render();
+    renderAnalysis();
+  }
+
+  function doLap(){
+    if (!running) { flashHeard('Start the clock first'); return; }
+    const total = currentElapsed();
+    const prevTotal = laps.length ? laps[laps.length - 1].totalMs : 0;
+    const split = total - prevTotal;
+    laps.push({ totalMs: total, splitMs: split });
+    renderLaps();
+  }
+
+  function doReset(){
+    running = false;
+    cancelAnimationFrame(rafId);
+    elapsedBeforePause = 0;
+    laps = [];
+    btnStart.disabled = false;
+    btnLap.disabled = true;
+    btnStop.disabled = true;
+    setState('Ready', '');
+    clearMinuteHighlight();
+    renderLaps();
+    render();
+    if (typeof switchTab === 'function') switchTab('timer');
+  }
+
+  function renderLaps(){
+    updateTabBadge();
+    logEl.innerHTML = '';
+    if (!laps.length){
+      logEl.appendChild(emptyLog);
+      renderAnalysis();
+      return;
+    }
+    let bestIdx = 0, bestSplit = Infinity;
+    laps.forEach((l, i) => { if (l.splitMs < bestSplit){ bestSplit = l.splitMs; bestIdx = i; } });
+
+    laps.forEach((l, i) => {
+      const row = document.createElement('div');
+      row.className = 'lap-row' + (i === bestIdx && laps.length > 1 ? ' best' : '');
+      const t = formatTime(l.totalMs);
+      const s = formatTime(l.splitMs);
+      row.innerHTML = `
+        <span class="idx">${String(i+1).padStart(2,'0')}</span>
+        <span class="split">+${s.main}.${s.cs}</span>
+        <span class="total">${t.main}.${t.cs}</span>
+      `;
+      logEl.insertBefore(row, logEl.firstChild);
+    });
+    renderAnalysis();
+  }
+
+  // ---------- Full-size analog clock: hour/minute/second hands ----------
+  const analogClock = document.getElementById('analogClock');
+
+  (function buildAnalogFace(){
+    for (let i = 0; i < 60; i++){
+      const marker = document.createElement('div');
+      marker.className = 'ac-marker' + (i % 5 === 0 ? ' hour' : '');
+      marker.style.transform = `rotate(${i * 6}deg)`;
+      const tick = document.createElement('div');
+      tick.className = 'ac-tick';
+      marker.appendChild(tick);
+      analogClock.appendChild(marker);
+    }
+    for (let n = 1; n <= 12; n++){
+      const angle = (n * 30) * (Math.PI / 180);
+      const radius = 38;
+      const x = 50 + radius * Math.sin(angle);
+      const y = 50 - radius * Math.cos(angle);
+      const num = document.createElement('div');
+      num.className = 'ac-number';
+      num.style.left = x + '%';
+      num.style.top = y + '%';
+      num.textContent = n;
+      analogClock.appendChild(num);
+    }
+    const hourHand = document.createElement('div');
+    hourHand.className = 'ac-hand ac-hour-hand';
+    hourHand.id = 'acHourHand';
+    const minuteHand = document.createElement('div');
+    minuteHand.className = 'ac-hand ac-minute-hand';
+    minuteHand.id = 'acMinuteHand';
+    const secondHand = document.createElement('div');
+    secondHand.className = 'ac-hand ac-second-hand';
+    secondHand.id = 'acSecondHand';
+    analogClock.appendChild(hourHand);
+    analogClock.appendChild(minuteHand);
+    analogClock.appendChild(secondHand);
+  })();
+
+  const acHourHand = document.getElementById('acHourHand');
+  const acMinuteHand = document.getElementById('acMinuteHand');
+  const acSecondHand = document.getElementById('acSecondHand');
+
+  function updateAnalogClock(){
+    const now = new Date();
+    const h = now.getHours() % 12;
+    const m = now.getMinutes();
+    const s = now.getSeconds();
+    const ms = now.getMilliseconds();
+
+    const secDeg = (s + ms / 1000) * 6;
+    const minDeg = (m + s / 60) * 6;
+    const hourDeg = (h + m / 60) * 30;
+
+    acHourHand.style.transform = `rotate(${hourDeg}deg)`;
+    acMinuteHand.style.transform = `rotate(${minDeg}deg)`;
+    acSecondHand.style.transform = `rotate(${secDeg}deg)`;
+
+    requestAnimationFrame(updateAnalogClock);
+  }
+  updateAnalogClock();
+
+  // ---------- Start-time mark: highlight a 20-minute arc from the minute hand's press-time position ----------
+  const acHighlightRing = document.getElementById('acHighlightRing');
+  const acMarkStart = document.getElementById('acMarkStart');
+  const acMarkEnd = document.getElementById('acMarkEnd');
+  const analogCaption = document.getElementById('analogCaption');
+  const AC_CIRC = 590.6; // 2 * PI * 94
+  const AC_SPAN_DEG = 120; // 20 minutes = 20/60 * 360deg
+  const AC_R = 94;
+  const AC_SPAN_MS = 20 * 60 * 1000;
+
+  let markCompleteTimeoutId = null;
+
+  // ---------- Beep alarm (Web Audio API — no external file needed) ----------
+  let audioCtx = null;
+  function unlockAudio(){
+    const AudioCtxClass = window.AudioContext || window.webkitAudioContext;
+    if (!AudioCtxClass) return;
+    if (!audioCtx) audioCtx = new AudioCtxClass();
+    if (audioCtx.state === 'suspended') audioCtx.resume();
+  }
+
+  function playBeepAlarm(durationMs){
+    const AudioCtxClass = window.AudioContext || window.webkitAudioContext;
+    if (!AudioCtxClass) return;
+    if (!audioCtx) audioCtx = new AudioCtxClass();
+    if (audioCtx.state === 'suspended') audioCtx.resume();
+
+    const beepOn = 0.28, beepOff = 0.14;
+    const cycle = beepOn + beepOff;
+    const cycles = Math.ceil((durationMs / 1000) / cycle);
+    for (let i = 0; i < cycles; i++){
+      const t0 = audioCtx.currentTime + i * cycle;
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+      osc.type = 'sine';
+      osc.frequency.value = 880;
+      gain.gain.setValueAtTime(0, t0);
+      gain.gain.linearRampToValueAtTime(0.35, t0 + 0.01);
+      gain.gain.linearRampToValueAtTime(0, t0 + beepOn);
+      osc.connect(gain);
+      gain.connect(audioCtx.destination);
+      osc.start(t0);
+      osc.stop(t0 + beepOn);
+    }
+  }
+
+  function currentMinuteAngle(){
+    const now = new Date();
+    const m = now.getMinutes();
+    const s = now.getSeconds();
+    const ms = now.getMilliseconds();
+    return ((m + (s + ms / 1000) / 60) * 6) % 360;
+  }
+
+  // Convert a hand-space angle (0deg = 12 o'clock, clockwise) to an x,y point on the ring
+  function pointOnRing(handAngleDeg){
+    const mathAngleRad = (handAngleDeg - 90) * (Math.PI / 180);
+    return {
+      x: 100 + AC_R * Math.cos(mathAngleRad),
+      y: 100 + AC_R * Math.sin(mathAngleRad)
+    };
+  }
+
+  function formatClockTime(d){
+    const pad = (n) => String(n).padStart(2, '0');
+    return `${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  }
+
+  // Mark the minute hand's current position and draw a fixed arc spanning +20 minutes
+  function markMinuteHighlight(){
+    unlockAudio();
+    const now = new Date();
+    const startAngle = currentMinuteAngle();
+    const endAngle = (startAngle + AC_SPAN_DEG) % 360;
+    const dashLen = (AC_SPAN_DEG / 360) * AC_CIRC;
+
+    acHighlightRing.style.transform = `rotate(${(startAngle - 90).toFixed(2)}deg)`;
+    acHighlightRing.setAttribute('stroke-dasharray', `${dashLen.toFixed(1)} ${(AC_CIRC - dashLen).toFixed(1)}`);
+
+    const startPt = pointOnRing(startAngle);
+    const endPt = pointOnRing(endAngle);
+    acMarkStart.setAttribute('cx', startPt.x.toFixed(2));
+    acMarkStart.setAttribute('cy', startPt.y.toFixed(2));
+    acMarkStart.setAttribute('visibility', 'visible');
+    acMarkEnd.setAttribute('cx', endPt.x.toFixed(2));
+    acMarkEnd.setAttribute('cy', endPt.y.toFixed(2));
+    acMarkEnd.setAttribute('visibility', 'visible');
+
+    const endTime = new Date(now.getTime() + 20 * 60000);
+    analogCaption.classList.add('marked');
+    analogCaption.textContent = `${formatClockTime(now)} \u2192 ${formatClockTime(endTime)} (+20 min)`;
+
+    if (markCompleteTimeoutId) clearTimeout(markCompleteTimeoutId);
+    markCompleteTimeoutId = setTimeout(() => {
+      playBeepAlarm(5000);
+      flashHeard('20 minutes complete');
+    }, AC_SPAN_MS);
+  }
+
+  function clearMinuteHighlight(){
+    acHighlightRing.setAttribute('stroke-dasharray', `0 ${AC_CIRC}`);
+    acMarkStart.setAttribute('visibility', 'hidden');
+    acMarkEnd.setAttribute('visibility', 'hidden');
+    analogCaption.classList.remove('marked');
+    analogCaption.innerHTML = '&nbsp;';
+    if (markCompleteTimeoutId){ clearTimeout(markCompleteTimeoutId); markCompleteTimeoutId = null; }
+  }
+
+  btnStart.addEventListener('click', doStart);
+  btnStop.addEventListener('click', doStop);
+  btnLap.addEventListener('click', doLap);
+  btnReset.addEventListener('click', doReset);
+
+
+  let heardTimeout = null;
+  function flashHeard(text){
+    heard.innerHTML = text;
+    clearTimeout(heardTimeout);
+    heard.style.opacity = '1';
+    heardTimeout = setTimeout(() => { heard.style.opacity = '0.4'; }, 1800);
+  }
+
+  // ---------- Voice control ----------
+  const micToggle = document.getElementById('micToggle');
+  const micLabel = document.getElementById('micLabel');
+  const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+  let recognition = null;
+  let listening = false;
+  let manuallyStopped = true;
+
+  function commandFromTranscript(text){
+    text = text.toLowerCase();
+    if (/\breset\b/.test(text)) return 'reset';
+    if (/\blap\b|\bmark\b/.test(text)) return 'lap';
+    if (/\bstop\b|\bpause\b/.test(text)) return 'stop';
+    if (/\bstart\b|\bbegin\b/.test(text)) return 'start';
+    return null;
+  }
+
+  function handleCommand(cmd){
+    if (cmd === 'start') { doStart(); flashHeard(`Heard: <b>start</b>`); }
+    else if (cmd === 'lap') { doLap(); flashHeard(`Heard: <b>lap</b>`); }
+    else if (cmd === 'stop') { doStop(); flashHeard(`Heard: <b>stop</b>`); }
+    else if (cmd === 'reset') { doReset(); flashHeard(`Heard: <b>reset</b>`); }
+  }
+
+  function setupRecognition(){
+    recognition = new SpeechRecognition();
+    recognition.continuous = true;
+    recognition.interimResults = false;
+    recognition.lang = 'en-US';
+
+    recognition.onresult = (event) => {
+      const last = event.results[event.results.length - 1];
+      const transcript = last[0].transcript.trim();
+      const cmd = commandFromTranscript(transcript);
+      if (cmd) {
+        handleCommand(cmd);
+      } else if (transcript) {
+        flashHeard(`No match: "${transcript}"`);
+      }
+    };
+
+    recognition.onerror = (event) => {
+      if (event.error === 'not-allowed' || event.error === 'service-not-allowed'){
+        flashHeard('Microphone access denied');
+        stopListening();
+      }
+    };
+
+    recognition.onend = () => {
+      if (listening && !manuallyStopped){
+        try { recognition.start(); } catch(e){}
+      }
+    };
+  }
+
+  function startListening(){
+    if (!SpeechRecognition){
+      flashHeard('Voice recognition not supported in this browser');
+      return;
+    }
+    if (!recognition) setupRecognition();
+    manuallyStopped = false;
+    try { recognition.start(); } catch(e){}
+    listening = true;
+    micToggle.classList.add('listening');
+    micToggle.setAttribute('aria-pressed', 'true');
+    micLabel.textContent = 'Listening';
+  }
+
+  function stopListening(){
+    manuallyStopped = true;
+    listening = false;
+    if (recognition) { try { recognition.stop(); } catch(e){} }
+    micToggle.classList.remove('listening');
+    micToggle.setAttribute('aria-pressed', 'false');
+    micLabel.textContent = 'Voice off';
+  }
+
+  micToggle.addEventListener('click', () => {
+    listening ? stopListening() : startListening();
+  });
+  micToggle.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' || e.key === ' '){ e.preventDefault(); micToggle.click(); }
+  });
+
+  if (!SpeechRecognition){
+    micLabel.textContent = 'Voice unsupported';
+    micToggle.style.opacity = '0.5';
+    micToggle.style.cursor = 'not-allowed';
+  }
+
+  // ---------- Tabs ----------
+  const tabTimer = document.getElementById('tabTimer');
+  const tabAnalysis = document.getElementById('tabAnalysis');
+  const panelTimer = document.getElementById('panelTimer');
+  const panelAnalysis = document.getElementById('panelAnalysis');
+  const tabBadge = document.getElementById('tabBadge');
+
+  function switchTab(name){
+    const toAnalysis = name === 'analysis';
+    tabTimer.classList.toggle('active', !toAnalysis);
+    tabAnalysis.classList.toggle('active', toAnalysis);
+    panelTimer.hidden = toAnalysis;
+    panelAnalysis.hidden = !toAnalysis;
+    if (toAnalysis) renderAnalysis();
+  }
+  tabTimer.addEventListener('click', () => switchTab('timer'));
+  tabAnalysis.addEventListener('click', () => switchTab('analysis'));
+
+  function updateTabBadge(){
+    tabBadge.textContent = laps.length ? laps.length : '';
+  }
+
+  // ---------- Analysis ----------
+  const analysisEmpty = document.getElementById('analysisEmpty');
+  const analysisContent = document.getElementById('analysisContent');
+  const analysisNote = document.getElementById('analysisNote');
+  const analysisLog = document.getElementById('analysisLog');
+  const chartSvg = document.getElementById('chartSvg');
+
+  function fmtFull(ms){
+    const t = formatTime(ms);
+    return `${t.main}.${t.cs}`;
+  }
+
+  function computeStats(){
+    const splits = laps.map(l => l.splitMs);
+    const n = splits.length;
+    const total = laps.length ? laps[laps.length-1].totalMs : 0;
+    const avg = splits.reduce((a,b) => a+b, 0) / n;
+    const variance = splits.reduce((a,b) => a + Math.pow(b-avg,2), 0) / n;
+    const stdDev = Math.sqrt(variance);
+    let bestIdx = 0, worstIdx = 0;
+    splits.forEach((s,i) => {
+      if (s < splits[bestIdx]) bestIdx = i;
+      if (s > splits[worstIdx]) worstIdx = i;
+    });
+    return { splits, n, total, avg, stdDev, bestIdx, worstIdx };
+  }
+
+  function renderChart(stats){
+    const W = 300, H = 140, padL = 4, padR = 4, padT = 8, padB = 18;
+    const plotW = W - padL - padR;
+    const plotH = H - padT - padB;
+    const n = stats.n;
+    const maxSplit = Math.max(...stats.splits, 1);
+    const barGap = 4;
+    const barW = Math.max(6, (plotW - barGap*(n-1)) / n);
+
+    let svg = '';
+    stats.splits.forEach((s, i) => {
+      const h = (s / maxSplit) * plotH;
+      const x = padL + i * (barW + barGap);
+      const y = padT + (plotH - h);
+      const isBest = i === stats.bestIdx;
+      const isWorst = i === stats.worstIdx && stats.n > 1;
+      const color = isBest ? 'var(--amber)' : isWorst ? 'var(--red)' : 'var(--teal)';
+      svg += `<rect class="chart-bar" x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${barW.toFixed(1)}" height="${h.toFixed(1)}" rx="2" fill="${color}" opacity="0.85"/>`;
+      svg += `<text class="chart-label" x="${(x+barW/2).toFixed(1)}" y="${H-6}" text-anchor="middle">${i+1}</text>`;
+    });
+    const avgY = padT + plotH - (stats.avg / maxSplit) * plotH;
+    svg += `<line class="chart-avg-line" x1="${padL}" y1="${avgY.toFixed(1)}" x2="${W-padR}" y2="${avgY.toFixed(1)}"/>`;
+    chartSvg.innerHTML = svg;
+  }
+
+  function renderAnalysis(){
+    updateTabBadge();
+    if (!laps.length){
+      analysisEmpty.hidden = false;
+      analysisContent.hidden = true;
+      return;
+    }
+    analysisEmpty.hidden = true;
+    analysisContent.hidden = false;
+    analysisNote.hidden = !running;
+
+    const stats = computeStats();
+    document.getElementById('statTotal').textContent = fmtFull(stats.total);
+    document.getElementById('statCount').textContent = stats.n;
+    document.getElementById('statAvg').textContent = fmtFull(stats.avg);
+    document.getElementById('statStdDev').textContent = '±' + fmtFull(stats.stdDev);
+    document.getElementById('statBest').textContent = fmtFull(stats.splits[stats.bestIdx]);
+    document.getElementById('statBestIdx').textContent = `Lap ${stats.bestIdx+1}`;
+    document.getElementById('statWorst').textContent = fmtFull(stats.splits[stats.worstIdx]);
+    document.getElementById('statWorstIdx').textContent = `Lap ${stats.worstIdx+1}`;
+
+    renderChart(stats);
+
+    analysisLog.innerHTML = '';
+    laps.forEach((l, i) => {
+      const row = document.createElement('div');
+      row.className = 'lap-row' + (i === stats.bestIdx && stats.n > 1 ? ' best' : '');
+      row.innerHTML = `
+        <span class="idx">${String(i+1).padStart(2,'0')}</span>
+        <span class="split">+${fmtFull(l.splitMs)}</span>
+        <span class="total">${fmtFull(l.totalMs)}</span>
+      `;
+      analysisLog.insertBefore(row, analysisLog.firstChild);
+    });
+  }
+
+  function buildReportText(){
+    const stats = computeStats();
+    const now = new Date();
+    const dateStr = now.toLocaleString();
+    let lines = [];
+    lines.push('CHRONOVOX SESSION REPORT');
+    lines.push('Generated: ' + dateStr);
+    lines.push('Status: ' + (running ? 'Running (live snapshot)' : 'Stopped'));
+    lines.push('');
+    lines.push('Total time      : ' + fmtFull(stats.total));
+    lines.push('Laps recorded   : ' + stats.n);
+    lines.push('Average lap     : ' + fmtFull(stats.avg));
+    lines.push('Consistency (\u03c3) : \u00b1' + fmtFull(stats.stdDev));
+    lines.push('Fastest lap     : Lap ' + (stats.bestIdx+1) + ' \u2014 ' + fmtFull(stats.splits[stats.bestIdx]));
+    lines.push('Slowest lap     : Lap ' + (stats.worstIdx+1) + ' \u2014 ' + fmtFull(stats.splits[stats.worstIdx]));
+    lines.push('');
+    lines.push('Lap  Split        Total');
+    laps.forEach((l, i) => {
+      const idx = String(i+1).padStart(2,'0');
+      lines.push(`${idx}   ${fmtFull(l.splitMs).padEnd(12)} ${fmtFull(l.totalMs)}`);
+    });
+    return lines.join('\n');
+  }
+
+  document.getElementById('btnCopyReport').addEventListener('click', async () => {
+    const text = buildReportText();
+    try {
+      await navigator.clipboard.writeText(text);
+      flashHeard('Report copied to clipboard');
+    } catch(e){
+      flashHeard('Copy failed \u2014 try download instead');
+    }
+  });
+
+  document.getElementById('btnDownloadReport').addEventListener('click', () => {
+    const text = buildReportText();
+    const blob = new Blob([text], { type: 'text/plain' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    const stamp = new Date().toISOString().replace(/[:.]/g,'-');
+    a.href = url;
+    a.download = `chronovox-report-${stamp}.txt`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  });
+
+  render();
+})();
+</script>
+
+</body>
+</html>
